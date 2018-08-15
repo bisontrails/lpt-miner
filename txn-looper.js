@@ -10,7 +10,8 @@ const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io
 const mineLpt = require('./src/mine-lpt.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
-let lastTxn = '0x9d11644df218e4d2254a12f223b3894f635ae5d66f78f8aee16696e14106f4b9';
+let lastTxn = '0xdcf1046830f6246ea863a9bb835691b9974b88364d69e721e2af40f768a788ba';
+let txnCheck = 0;
 let merkleTree = null;
 let history = {};
 let loadedHistory = false;
@@ -26,33 +27,48 @@ const checkTransaction = async () => {
         await loadHistory();
         loadedHistory = true;
     }
-    console.log('Checking transaction ' + lastTxn);
+    console.log('(' + txnCheck + ') Checking transaction ' + lastTxn);
     const txn = await web3.eth.getTransaction(lastTxn);
     if (txn != null && txn.blockNumber != null) {
+        console.log('txn completed...');
         const txnReceipt = await web3.eth.getTransactionReceipt(lastTxn);
         await saveTxnDetails(lastTxn, txn, txnReceipt);
         client.set('lpt-txn-looper.history', JSON.stringify(history));
         calculateDetails();
         //new thing
         try {
-            const gasPrice = await getSafeGasPrice();
-            const txnHashs = await mineLpt(gasPrice, merkleTree);
-            console.log(txnHashs);
-            lastTxn = txnHashs[0];
+            await createLptTxn();
             checkTransactionWithTimeout();
         } catch(ex) {
             checkTransactionWithTimeout();
         }
     } else {
+        txnCheck++;
+        if (txnCheck > 25) {
+            console.log('txn not completed, creating new one in its place...');
+            await setTransactionToPrevious();
+            await createLptTxn();
+        }
         checkTransactionWithTimeout();
     }
 
 };
 
+const createLptTxn = async () => {
+    const gasPrice = await getSafeGasPrice();
+    const txnHashs = await mineLpt(gasPrice, merkleTree);
+    lastTxn = txnHashs[0];
+    txnCheck = 0;
+};
+
 const checkTransactionWithTimeout = async () => {
     setTimeout(() => {
-        checkTransaction();
-    }, 1000*60);
+        try {
+            checkTransaction();
+        } catch (ex) {
+            checkTransactionWithTimeout();
+        }
+    }, 1000*20);
 };
 
 checkTransaction();
@@ -72,7 +88,13 @@ const saveTxnDetails = async (txnHash, txn, txnReceipt) => {
     history[lastTxn].transaction = txn;
     history[lastTxn].receipt = txnReceipt;
     history[lastTxn].price = priceJson;
-}
+};
+
+const setTransactionToPrevious = async () => {
+    let redisNonce = parseInt(await client.getAsync('eth_redis_nonce'));
+    redisNonce--;
+    client.set('eth_redis_nonce', redisNonce);
+};
 
 const calculateDetails = () => {
     let total = 0.0;
