@@ -10,7 +10,7 @@ const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io
 const mineLpt = require('./src/mine-lpt.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
-let lastTxn = '0xdcf1046830f6246ea863a9bb835691b9974b88364d69e721e2af40f768a788ba';
+let lastTxn = '0x52f6b7e62a409c571e2098a55a4dc664e43b8231496164f08a6e8f0c6bef348d';
 let txnCheck = 0;
 let merkleTree = null;
 let history = {};
@@ -27,30 +27,37 @@ const checkTransaction = async () => {
         await loadHistory();
         loadedHistory = true;
     }
-    console.log('(' + txnCheck + ') Checking transaction ' + lastTxn);
-    const txn = await web3.eth.getTransaction(lastTxn);
-    if (txn != null && txn.blockNumber != null) {
-        console.log('txn completed...');
-        const txnReceipt = await web3.eth.getTransactionReceipt(lastTxn);
-        await saveTxnDetails(lastTxn, txn, txnReceipt);
-        client.set('lpt-txn-looper.history', JSON.stringify(history));
-        calculateDetails();
-        //new thing
-        try {
-            await createLptTxn();
-            checkTransactionWithTimeout();
-        } catch(ex) {
-            checkTransactionWithTimeout();
+    try {
+        console.log('(' + txnCheck + ') Checking transaction ' + lastTxn);
+        const txn = await web3.eth.getTransaction(lastTxn);
+        if (txn != null && txn.blockNumber != null) {
+            console.log('txn completed...');
+            const txnReceipt = await web3.eth.getTransactionReceipt(lastTxn);
+            await saveTxnDetails(lastTxn, txn, txnReceipt);
+            client.set('lpt-txn-looper.history', JSON.stringify(history));
+            calculateDetails();
+            //new thing
+            try {
+                await createLptTxn();
+            } catch(ex) {
+                console.log('error creating txn', ex);
+            }
+        } else {
+            txnCheck++;
+            if (txnCheck > 25) {
+                try {
+                    console.log('txn not completed, creating new one in its place...');
+                    await setTransactionToPrevious();
+                    await createLptTxn();
+                } catch (e) {
+                    console.log('error recreating txn', e);
+                }
+            }
         }
-    } else {
-        txnCheck++;
-        if (txnCheck > 25) {
-            console.log('txn not completed, creating new one in its place...');
-            await setTransactionToPrevious();
-            await createLptTxn();
-        }
-        checkTransactionWithTimeout();
+    } catch (ex) {
+        console.log('some general exception', ex);
     }
+    checkTransactionWithTimeout();
 
 };
 
