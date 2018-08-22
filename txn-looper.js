@@ -10,11 +10,12 @@ const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io
 const mineLpt = require('./src/mine-lpt.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
-let lastTxn = '0x52f6b7e62a409c571e2098a55a4dc664e43b8231496164f08a6e8f0c6bef348d';
+let lastTxn = '0xa974db9cf0263f835f025865bff1c2e8141d9de39883d9a1ba58d29cf46bfefe';
 let txnCheck = 0;
 let merkleTree = null;
 let history = {};
 let loadedHistory = false;
+let lastPrice = 6510000099;
 const client = redis.createClient();
 
 
@@ -38,7 +39,7 @@ const checkTransaction = async () => {
             calculateDetails();
             //new thing
             try {
-                await createLptTxn();
+                await createLptTxn(true);
             } catch(ex) {
                 console.log('error creating txn', ex);
             }
@@ -48,7 +49,7 @@ const checkTransaction = async () => {
                 try {
                     console.log('txn not completed, creating new one in its place...');
                     await setTransactionToPrevious();
-                    await createLptTxn();
+                    await createLptTxn(false);
                 } catch (e) {
                     console.log('error recreating txn', e);
                 }
@@ -61,10 +62,13 @@ const checkTransaction = async () => {
 
 };
 
-const createLptTxn = async () => {
+const createLptTxn = async (isNew) => {
     const gasPrice = await getSafeGasPrice();
-    const txnHashs = await mineLpt(gasPrice, merkleTree);
-    lastTxn = txnHashs[0];
+    if (isNew || gasPrice > lastPrice) {
+        const txnHashs = await mineLpt(gasPrice, merkleTree);
+        lastTxn = txnHashs[0];
+        lastPrice = gasPrice;
+    }
     txnCheck = 0;
 };
 
@@ -111,7 +115,7 @@ const calculateDetails = () => {
             const gasPrice = history[key].transaction.gasPrice;
             const ethPrice = history[key].price["USD"];
             const paid = gasUsed*gasPrice*ethPrice/1000000000000000000;
-            console.log('paid $' + paid.toFixed(2) + ' used ' + gasUsed + ' at ' + gasPrice + ' at ' + ethPrice);
+            // console.log('paid $' + paid.toFixed(2) + ' used ' + gasUsed + ' at ' + gasPrice + ' at ' + ethPrice);
         total += paid;
         } catch (ex) {
             //fail silently on printing :-/
