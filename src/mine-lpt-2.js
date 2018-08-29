@@ -136,8 +136,6 @@ const submitProof = (callerAddress, addressList, merkleProofs, txKeyManager, gas
 
             web3.eth.sendSignedTransaction(signedTx).on("transactionHash", txHash => {
                 console.log(`Submitted tx ${txHash} to generate allocation for ${callerAddress} from ${callerAddress}`)
-                nonce++;
-                redisClient.set('eth_redis_nonce.' + callerAddress, nonce);
                 resolve(txHash);
             });
         } catch (ex) {

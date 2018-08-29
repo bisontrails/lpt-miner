@@ -41,7 +41,11 @@ const init = async () => {
 const execute = async () => {
     const promises = addresses.map((addressInfo => {
         return new Promise(async (resolve, reject) => {
-            await checkTransaction(addressInfo);
+            try {
+                await checkTransaction(addressInfo);
+            } catch (e) {
+                await checkTransaction(addressInfo);
+            }
             resolve();
         })
     }));
@@ -68,18 +72,20 @@ const checkTransaction = async (addressInfo) => {
         if (txn != null && txn.blockNumber != null) {
             const newNonce = txn.nonce + 1;
             client.set('eth_redis_nonce.' + addressInfo.address, newNonce);
-            console.log('txn completed... ' + addressInfo.lastTx + ' for ' + addressInfo.address);
+            console.log('txn completed... ' + addressInfo.lastTxn + ' for ' + addressInfo.address);
             try {
                 await createLptTxn(addressInfo, true);
-            } catch(ex) {
+            } catch (ex) {
                 console.log('error creating txn ' + addressInfo.address, ex);
             }
+        } else if (txn == null) {
+            console.log('txn is null', txn, addressInfo.address);
+            await createLptTxn(addressInfo, false);
         } else {
             addressInfo.txnCheck++;
             if (addressInfo.txnCheck > 25) {
                 try {
                     console.log('txn not completed, creating new one in its place...');
-                    await setTransactionToPrevious(addressInfo);
                     await createLptTxn(addressInfo, false);
                 } catch (e) {
                     console.log('error recreating txn', e);
@@ -112,12 +118,6 @@ const checkTransactionWithTimeout = async (addressInfo) => {
             checkTransactionWithTimeout(addressInfo);
         }
     }, 1000*20);
-};
-
-const setTransactionToPrevious = async (addressInfo) => {
-    let redisNonce = parseInt(await client.getAsync('eth_redis_nonce.' + addressInfo.address));
-    redisNonce--;
-    client.set('eth_redis_nonce.' + addressInfo.address, redisNonce);
 };
 
 const getSafeGasPrice = async () => {
