@@ -6,7 +6,6 @@ const redis = require("redis");
 bluebird.promisifyAll(redis);
 
 const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io"));
-const TxKeyManager = require("../../merkle-mine/client/lib/TxKeyManager");
 
 const mineLpt = require('./src/mine-lpt-2.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
