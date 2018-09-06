@@ -22,12 +22,16 @@ const init = async () => {
     console.log("Initializing txn looper [v2].");
     const addySplit = ADDRESSES.split(',');
     const pwSplit = KEY_PASSWORDS.split(',,,'); //stupid but effective
-    const lastTxnSplit = LAST_TXNS.split(',');
+    let lastTxnSplit = null;
+    if (LAST_TXNS) {
+        const lastTxnSplit = LAST_TXNS.split(',');
+    }
+
     for (let i = 0; i<addySplit.length; i++) {
         addresses.push({
             address: addySplit[i],
             pw: pwSplit[i],
-            lastTxn: lastTxnSplit[i],
+            lastTxn: lastTxnSplit ? lastTxnSplit[i] : null,
             prevTxns: [],
             txnCheck: 0,
             lastPrice: 6510000099
@@ -66,28 +70,35 @@ const checkTransaction = async (addressInfo) => {
     //     loadedHistory = true;
     // }
     try {
-        console.log('(' + addressInfo.txnCheck + ') Checking transaction ' + addressInfo.lastTxn + ', ' + addressInfo.address);
-        const txn = await web3.eth.getTransaction(addressInfo.lastTxn);
-        if (txn != null && txn.blockNumber != null) {
-            const newNonce = txn.nonce + 1;
-            client.set('eth_redis_nonce.' + addressInfo.address, newNonce);
-            console.log('txn completed... ' + addressInfo.lastTxn + ' for ' + addressInfo.address);
-            try {
-                await createLptTxn(addressInfo, true);
-            } catch (ex) {
-                console.log('error creating txn ' + addressInfo.address, ex);
-            }
-        } else if (txn == null) {
-            console.log('txn is null', txn, addressInfo.address);
-            await createLptTxn(addressInfo, false);
+
+        if (!addressInfo.lastTxn) {
+            console.log('Assuming this is the first txn for this address.');
+            client.set('eth_redis_nonce.' + addressInfo.address, 0);
+            await createLptTxn(addressInfo, true);
         } else {
-            addressInfo.txnCheck++;
-            if (addressInfo.txnCheck > 25) {
+            console.log('(' + addressInfo.txnCheck + ') Checking transaction ' + addressInfo.lastTxn + ', ' + addressInfo.address);
+            const txn = await web3.eth.getTransaction(addressInfo.lastTxn);
+            if (txn != null && txn.blockNumber != null) {
+                const newNonce = txn.nonce + 1;
+                client.set('eth_redis_nonce.' + addressInfo.address, newNonce);
+                console.log('txn completed... ' + addressInfo.lastTxn + ' for ' + addressInfo.address);
                 try {
-                    console.log('txn not completed, creating new one in its place...');
-                    await createLptTxn(addressInfo, false);
-                } catch (e) {
-                    console.log('error recreating txn', e);
+                    await createLptTxn(addressInfo, true);
+                } catch (ex) {
+                    console.log('error creating txn ' + addressInfo.address, ex);
+                }
+            } else if (txn == null) {
+                console.log('txn is null', txn, addressInfo.address);
+                await createLptTxn(addressInfo, false);
+            } else {
+                addressInfo.txnCheck++;
+                if (addressInfo.txnCheck > 25) {
+                    try {
+                        console.log('txn not completed, creating new one in its place...');
+                        await createLptTxn(addressInfo, false);
+                    } catch (e) {
+                        console.log('error recreating txn', e);
+                    }
                 }
             }
         }
