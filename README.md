@@ -64,7 +64,7 @@ There is a .env.example file. Make a copy of this file and save it as .env. You 
 
 
 ## Start mining!
-You should be all set and ready to mine lots of LPT to bond to our (or anyone elses) transcoder --
+You should be all set and ready to mine lots of LPT to bond to [our LivePeer transcoder](https://explorer.livepeer.org/accounts/0xda43d85b8d419a9c51bbf0089c9bd5169c23f2f9/transcoding) (or any one elses :-D) --
 
     npm start
     
