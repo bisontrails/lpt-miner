@@ -7,7 +7,7 @@ bluebird.promisifyAll(redis);
 
 const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io"));
 
-const mineLpt = require('./src/mine-lpt-2.js');
+const mineLpt = require('./src/miner.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
 const addresses = [];

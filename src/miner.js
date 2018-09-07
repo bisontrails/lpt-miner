@@ -51,13 +51,13 @@ const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
 const fetchAccounts = async () => {
     const one = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
     const onej = JSON.parse((await one.json()).body);
-    // const two = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
-    // const twoj = JSON.parse((await two.json()).body);
-    // const three = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
-    // const threej = JSON.parse((await three.json()).body);
+    let accounts = onej;
+    if (NUMBER_ADDRESS_PER_TXN > 20) {
+        const two = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
+        const twoj = JSON.parse((await two.json()).body);
+        accounts = onej.concat(twoj);
+    }
 
-
-    const accounts = onej;//.concat(twoj);//, threej, threej);
     console.log('Got ' + accounts.length + ' accounts to mine.');
     return accounts;
 };
