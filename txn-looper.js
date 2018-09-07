@@ -142,6 +142,7 @@ const createLptTxn = async (addressInfo, isNew) => {
         addressInfo.prevTxns.push(addressInfo.lastTxn); //save this for later
         addressInfo.lastTxn = txnHashs[0];
         addressInfo.lastPrice = gasPrice;
+        addressInfo.firstTry = false;
     }
     addressInfo.txnCheck = 0;
 };
