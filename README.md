@@ -5,7 +5,7 @@ lpt-miner is a simple node app that interacts with the [MultiMerkleMine](https:/
 
 lpt-miner can mine simultaneously across any number of Ethereum addresses. It creates, signs, submits and monitors transactions for each address it is configured to use. When a transaction is completed, it automatically submits a new one. It monitors gas prices and adjusts automatically to the current safe low gas price returned from [ethgasstation.info](ethgasstation.info).
 
-## Prerequisites:
+## Prerequisites
 
 ### Git
 Have the git command line tool installed
@@ -30,12 +30,12 @@ Then move into the directory:
     cd lpt-miner
     
     
-## Install with:
+## Installation
 
     npm install
 
 
-## Setup:
+## Setup
 
 
 ### UTC JSON Keystore
