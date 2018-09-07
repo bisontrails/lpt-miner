@@ -68,7 +68,11 @@ You should be all set and ready to mine lots of LPT to bond to [our LivePeer tra
 
     npm start
     
-    
+Once you have mined LPT, to begin participating in the network even more make sure to bond to a Transcoder ([like ours](https://explorer.livepeer.org/accounts/0xda43d85b8d419a9c51bbf0089c9bd5169c23f2f9/transcoding)). Through using a browser wallet plugin like [MetaMask](https://metamask.io/) you can visit any transcoder page and bond directly to a transcoder which allows you to earn inflation and rewards when that transcoder completes jobs.
     
 ## Feedback welcome!
 Please give us feedback or ask questions in the issues for this repo. We will try to support it as best as we can.
+
+
+## Shotouts
+Thanks to the LivePeer team for working on the whole awesome network and the MerkleMine library. And thanks to Chris Remus for helping me debug through installing and running this app on other computers besides my own.
