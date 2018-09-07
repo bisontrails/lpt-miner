@@ -41,6 +41,8 @@ Then move into the directory:
 ### UTC JSON Keystore
 Have your UTC JSON keystore files in a directory that the script has access to. These files are generated when you create an Ethereum wallet and can be used as is. For example myetherwallet gives you one of these keystore files. For more on keystore files, [check out this link](https://medium.com/@julien.maffre/what-is-an-ethereum-keystore-file-86c8c5917b97). 
 
+* Make sure you have some ETH in your wallet!
+
 ### .env file setup
 There is a .env.example file. Make a copy of this file and save it as .env. You can then update that file with your own address information and lpt-miner settings. The environment settings are described below -- 
 
