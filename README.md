@@ -8,6 +8,7 @@ lpt-miner can mine simultaneously across any number of Ethereum addresses. It cr
 ## Prerequisites:
 
 ### Git
+Have the git command line tool installed
 
 ### Node & npm
 Make sure to have node v8 and npm installed before working with this repo
