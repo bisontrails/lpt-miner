@@ -1,14 +1,14 @@
-require('dotenv').config()
-const Web3 = require("web3");
-const redis = require("redis")
+require('dotenv').config();
+const Web3 = require('web3');
+const redis = require('redis');
 const bluebird = require('bluebird');
 const fetch = require('node-fetch');
 bluebird.promisifyAll(redis);
 
-const MerkleMineBulkArtifact = require("./MerkleMineBulkArtifact.json");
-const { addHexPrefix } = require("ethereumjs-util")
-const TxKeyManager = require("merkle-mine/client/lib/TxKeyManager");
-const MerkleMineGenerator = require("merkle-mine/client/lib/MerkleMineGenerator");
+const MerkleMineBulkArtifact = require('./MerkleMineBulkArtifact.json');
+const { addHexPrefix } = require('ethereumjs-util');
+const TxKeyManager = require('merkle-mine/client/lib/TxKeyManager');
+const MerkleMineGenerator = require('merkle-mine/client/lib/MerkleMineGenerator');
 
 const buildMerkleTree = require('./buildMerkleTree.js');
 
@@ -17,14 +17,18 @@ const KEY_LOCATION = process.env.KEY_LOCATION;
 const NUMBER_OF_LOOPS = 1;
 const NUMBER_ADDRESS_PER_TXN = process.env.NUMBER_ADDRESS_PER_TXN;
 
-
 const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
     const client = redis.createClient();
 
-    const provider = new Web3.providers.HttpProvider("https://mainnet.infura.io");
-    const merkleMineAddress = "0x8e306b005773bee6ba6a6e8972bc79d766cc15c8";
+    const provider = new Web3.providers.HttpProvider(
+        'https://mainnet.infura.io'
+    );
+    const merkleMineAddress = '0x8e306b005773bee6ba6a6e8972bc79d766cc15c8';
 
-    console.log("Using the Ethereum main network, Merkle Mine contract: " + merkleMineAddress);
+    console.log(
+        'Using the Ethereum main network, Merkle Mine contract: ' +
+            merkleMineAddress
+    );
     if (merkleTree == null) {
         merkleTree = await buildMerkleTree();
     }
@@ -38,9 +42,22 @@ const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
     let i = 0;
     const txnHashes = [];
     while (i < NUMBER_OF_LOOPS) {
-        const { toclaim, hexproofs } = await getAddressesAndProofs(provider, merkleTree, merkleMineAddress);
-        console.log('submitting with ga price of ' + gasPrice + ' for ' + yourAddress);
-        const hash = await submitProof(yourAddress, toclaim, extendedBufArrToHex(hexproofs), txKeyManager, gasPrice, client);
+        const { toclaim, hexproofs } = await getAddressesAndProofs(
+            provider,
+            merkleTree,
+            merkleMineAddress
+        );
+        console.log(
+            'submitting with ga price of ' + gasPrice + ' for ' + yourAddress
+        );
+        const hash = await submitProof(
+            yourAddress,
+            toclaim,
+            extendedBufArrToHex(hexproofs),
+            txKeyManager,
+            gasPrice,
+            client
+        );
         txnHashes.push(hash);
         i++;
     }
@@ -49,11 +66,15 @@ const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
 };
 
 const fetchAccounts = async () => {
-    const one = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
+    const one = await fetch(
+        'https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts'
+    );
     const onej = JSON.parse((await one.json()).body);
     let accounts = onej;
     if (NUMBER_ADDRESS_PER_TXN > 20) {
-        const two = await fetch('https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts');
+        const two = await fetch(
+            'https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts'
+        );
         const twoj = JSON.parse((await two.json()).body);
         accounts = onej.concat(twoj);
     }
@@ -62,50 +83,73 @@ const fetchAccounts = async () => {
     return accounts;
 };
 
-const getAddressesAndProofs = async (provider, merkleTree, merkleMineAddress) => {
+const getAddressesAndProofs = async (
+    provider,
+    merkleTree,
+    merkleMineAddress
+) => {
     const accounts = await fetchAccounts();
 
     const toclaim = [];
     const hexproofs = [];
 
-    for (let i=0; i<accounts.length; i++) {
+    for (let i = 0; i < accounts.length; i++) {
         try {
             if (toclaim.length < NUMBER_ADDRESS_PER_TXN) {
                 const hexAddr = accounts[i].toLowerCase();
                 i++;
-                const gen = new MerkleMineGenerator(provider, merkleTree, merkleMineAddress, hexAddr);
+                const gen = new MerkleMineGenerator(
+                    provider,
+                    merkleTree,
+                    merkleMineAddress,
+                    hexAddr
+                );
 
                 const merkleMine = await gen.getMerkleMine();
-                const generated = await merkleMine.methods.generated(hexAddr).call();
+                const generated = await merkleMine.methods
+                    .generated(hexAddr)
+                    .call();
 
                 if (generated) {
                     console.log(`Allocation for ${hexAddr} already generated!`);
                 } else {
-                    console.log(`Allocation for ${hexAddr} *NOT* already generated!`);
+                    console.log(
+                        `Allocation for ${hexAddr} *NOT* already generated!`
+                    );
                     const proof = merkleTree.getHexProof(hexAddr);
                     toclaim.push(hexAddr);
                     hexproofs.push(proof.substr(2));
                 }
             }
-        } catch(ex) {
+        } catch (ex) {
             console.log(ex);
         }
     }
     return {
         toclaim,
         hexproofs
-    }
-
+    };
 };
 
-const submitProof = (callerAddress, addressList, merkleProofs, txKeyManager, gasPrice, redisClient) => {
+const submitProof = (
+    callerAddress,
+    addressList,
+    merkleProofs,
+    txKeyManager,
+    gasPrice,
+    redisClient
+) => {
     return new Promise(async (resolve, reject) => {
-        const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io"));
-        const merkleBulkAddress = "0x182EBF4C80B28efc45AD992ecBb9f730e31e8c7F";
-        const bulkMerkleMiner = new web3.eth.Contract(MerkleMineBulkArtifact.abi, merkleBulkAddress);
+        const web3 = new Web3(
+            new Web3.providers.HttpProvider('https://mainnet.infura.io')
+        );
+        const merkleBulkAddress = '0x182EBF4C80B28efc45AD992ecBb9f730e31e8c7F';
+        const bulkMerkleMiner = new web3.eth.Contract(
+            MerkleMineBulkArtifact.abi,
+            merkleBulkAddress
+        );
 
         try {
-
             console.log('Generating txn for ' + addressList.length);
             const generateFn = bulkMerkleMiner.methods.multiGenerate(
                 '8e306b005773bee6ba6a6e8972bc79d766cc15c8',
@@ -113,10 +157,11 @@ const submitProof = (callerAddress, addressList, merkleProofs, txKeyManager, gas
                 merkleProofs
             );
 
-
             const data = generateFn.encodeABI();
             let nonce = await web3.eth.getTransactionCount(callerAddress);
-            let nonceR = parseInt(await redisClient.getAsync('eth_redis_nonce.' + callerAddress));
+            let nonceR = parseInt(
+                await redisClient.getAsync('eth_redis_nonce.' + callerAddress)
+            );
             if (nonceR && nonceR > nonce) {
                 nonce = nonceR;
             }
@@ -127,19 +172,23 @@ const submitProof = (callerAddress, addressList, merkleProofs, txKeyManager, gas
             const signedTx = txKeyManager.signTransaction({
                 nonce: nonce,
                 gasPrice: gasPrice,
-                gasLimit: 170000*addressList.length,
+                gasLimit: 170000 * addressList.length,
                 to: addHexPrefix(merkleBulkAddress),
                 value: 0,
                 data: data,
                 chainId: networkId
             });
 
-            web3.eth.sendSignedTransaction(signedTx).on("transactionHash", txHash => {
-                console.log(`Submitted tx ${txHash} to generate allocation for ${callerAddress} from ${callerAddress}`)
-                resolve(txHash);
-            });
+            web3.eth
+                .sendSignedTransaction(signedTx)
+                .on('transactionHash', txHash => {
+                    console.log(
+                        `Submitted tx ${txHash} to generate allocation for ${callerAddress} from ${callerAddress}`
+                    );
+                    resolve(txHash);
+                });
         } catch (ex) {
-            console.log ('big error');
+            console.log('big error');
             console.log(ex);
             reject();
         }
@@ -150,32 +199,29 @@ const submitProof = (callerAddress, addressList, merkleProofs, txKeyManager, gas
 HELPERS
  */
 
-const encodeProofSize = (proof) => {
-    const proofSize = proof.length / 2
+const encodeProofSize = proof => {
+    const proofSize = proof.length / 2;
 
-    let res = proofSize.toString('16')
-    let len = res.length
+    let res = proofSize.toString('16');
+    let len = res.length;
 
     while (len < 64) {
-        res = '0' + res
-        len++
+        res = '0' + res;
+        len++;
     }
 
-    return res
+    return res;
 };
 
-const extendedBufArrToHex = (proofs) => {
+const extendedBufArrToHex = proofs => {
     return (
         '0x' +
         proofs
             .map(proof => {
-                return encodeProofSize(proof) + proof
+                return encodeProofSize(proof) + proof;
             })
             .join('')
-    )
+    );
 };
-
-
-
 
 module.exports = mineLpt;

@@ -25,6 +25,7 @@
     "web3": "^1.0.0-beta.35"
   },
   "devDependencies": {
-    "merkle-mine": "git+https://github.com/livepeer/merkle-mine.git#master"
+    "merkle-mine": "git+https://github.com/livepeer/merkle-mine.git#master",
+    "prettier": "1.14.2"
   }
 }
