@@ -5,10 +5,10 @@ const bluebird = require('bluebird');
 const fetch = require('node-fetch');
 bluebird.promisifyAll(redis);
 
-const MerkleMineBulkArtifact = require("../MerkleMineBulkArtifact.json");
+const MerkleMineBulkArtifact = require("./MerkleMineBulkArtifact.json");
 const { addHexPrefix } = require("ethereumjs-util")
-const TxKeyManager = require("../../merkle-mine/client/lib/TxKeyManager");
-const MerkleMineGenerator = require("../../merkle-mine/client/lib/MerkleMineGenerator");
+const TxKeyManager = require("merkle-mine/client/lib/TxKeyManager");
+const MerkleMineGenerator = require("merkle-mine/client/lib/MerkleMineGenerator");
 
 const buildMerkleTree = require('./buildMerkleTree.js');
 

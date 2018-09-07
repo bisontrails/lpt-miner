@@ -7,121 +7,129 @@ bluebird.promisifyAll(redis);
 
 const web3 = new Web3(new Web3.providers.HttpProvider("https://mainnet.infura.io"));
 
-const mineLpt = require('./src/mine-lpt.js');
+const mineLpt = require('./src/mine-lpt-2.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
-let lastTxn = '0xa974db9cf0263f835f025865bff1c2e8141d9de39883d9a1ba58d29cf46bfefe';
-let txnCheck = 0;
+const addresses = [];
 let merkleTree = null;
-let history = {};
-let loadedHistory = false;
-let lastPrice = 6510000099;
 const client = redis.createClient();
 
+const ADDRESSES = process.env.YOUR_ADDRESSES;
+const KEY_PASSWORDS = process.env.KEY_PASSWORDS;
+const LAST_TXNS = process.env.LAST_TXNS;
 
+const init = async () => {
+    console.log("Initializing txn looper [v2].");
+    const addySplit = ADDRESSES.split(',');
+    const pwSplit = KEY_PASSWORDS.split(',,,'); //stupid but effective
+    let lastTxnSplit = null;
+    if (LAST_TXNS) {
+        lastTxnSplit = LAST_TXNS.split(',');
+    }
 
-const checkTransaction = async () => {
-    if (merkleTree == null) {
-        merkleTree = await buildMerkleTree();
+    for (let i = 0; i<addySplit.length; i++) {
+        addresses.push({
+            address: addySplit[i],
+            pw: pwSplit[i],
+            lastTxn: lastTxnSplit ? lastTxnSplit[i] : null,
+            prevTxns: [],
+            txnCheck: 0,
+            lastPrice: 6510000099,
+            firstTry: true
+        });
     }
-    if (!loadedHistory) {
-        await loadHistory();
-        loadedHistory = true;
-    }
-    try {
-        console.log('(' + txnCheck + ') Checking transaction ' + lastTxn);
-        const txn = await web3.eth.getTransaction(lastTxn);
-        if (txn != null && txn.blockNumber != null) {
-            console.log('txn completed...');
-            const txnReceipt = await web3.eth.getTransactionReceipt(lastTxn);
-            await saveTxnDetails(lastTxn, txn, txnReceipt);
-            client.set('lpt-txn-looper.history', JSON.stringify(history));
-            calculateDetails();
-            //new thing
+    console.log('Starting merkle mine batch with  ' + addresses.length + ' addresses.');
+    merkleTree = await buildMerkleTree();
+};
+
+const execute = async () => {
+    const promises = addresses.map((addressInfo => {
+        return new Promise(async (resolve, reject) => {
             try {
-                await createLptTxn(true);
-            } catch(ex) {
-                console.log('error creating txn', ex);
+                await checkTransaction(addressInfo);
+            } catch (e) {
+                await checkTransaction(addressInfo);
             }
+            resolve();
+        })
+    }));
+
+    console.log('Mining beginning...');
+    await Promise.all(promises);
+};
+
+const main = async () => {
+    await init();
+    await execute();
+};
+
+main();
+
+const checkTransaction = async (addressInfo) => {
+    try {
+
+        if (!addressInfo.lastTxn && addressInfo.firstTry) {
+            console.log('Assuming this is the first txn for this address.');
+            client.set('eth_redis_nonce.' + addressInfo.address, 0);
+            await createLptTxn(addressInfo, true);
         } else {
-            txnCheck++;
-            if (txnCheck > 25) {
+            if (!addressInfo.lastTxn) {
+                //recover the last one...
+                addressInfo.lastTxn = addressInfo.prevTxns[-1];
+            }
+
+            console.log('(' + addressInfo.txnCheck + ') Checking transaction ' + addressInfo.lastTxn + ', ' + addressInfo.address);
+            const txn = await web3.eth.getTransaction(addressInfo.lastTxn);
+            if (txn != null && txn.blockNumber != null) {
+                const newNonce = txn.nonce + 1;
+                client.set('eth_redis_nonce.' + addressInfo.address, newNonce);
+                console.log('txn completed... ' + addressInfo.lastTxn + ' for ' + addressInfo.address);
                 try {
-                    console.log('txn not completed, creating new one in its place...');
-                    await setTransactionToPrevious();
-                    await createLptTxn(false);
-                } catch (e) {
-                    console.log('error recreating txn', e);
+                    await createLptTxn(addressInfo, true);
+                } catch (ex) {
+                    console.log('error creating txn ' + addressInfo.address, ex);
+                }
+            } else if (txn == null) {
+                console.log('txn is null', txn, addressInfo.address);
+                await createLptTxn(addressInfo, false);
+            } else {
+                addressInfo.txnCheck++;
+                if (addressInfo.txnCheck > 25) {
+                    try {
+                        console.log('txn not completed, creating new one in its place...');
+                        await createLptTxn(addressInfo, false);
+                    } catch (e) {
+                        console.log('error recreating txn', e);
+                    }
                 }
             }
         }
     } catch (ex) {
         console.log('some general exception', ex);
     }
-    checkTransactionWithTimeout();
+    await checkTransactionWithTimeout(addressInfo);
 
 };
 
-const createLptTxn = async (isNew) => {
+const createLptTxn = async (addressInfo, isNew) => {
     const gasPrice = await getSafeGasPrice();
-    if (isNew || gasPrice > lastPrice) {
-        const txnHashs = await mineLpt(gasPrice, merkleTree);
-        lastTxn = txnHashs[0];
-        lastPrice = gasPrice;
+    if (isNew || gasPrice > addressInfo.lastPrice) {
+        const txnHashs = await mineLpt(gasPrice, merkleTree, addressInfo.address, addressInfo.pw);
+        addressInfo.prevTxns.push(addressInfo.lastTxn); //save this for later
+        addressInfo.lastTxn = txnHashs[0];
+        addressInfo.lastPrice = gasPrice;
     }
-    txnCheck = 0;
+    addressInfo.txnCheck = 0;
 };
 
-const checkTransactionWithTimeout = async () => {
+const checkTransactionWithTimeout = async (addressInfo) => {
     setTimeout(() => {
         try {
-            checkTransaction();
+            checkTransaction(addressInfo);
         } catch (ex) {
-            checkTransactionWithTimeout();
+            checkTransactionWithTimeout(addressInfo);
         }
     }, 1000*20);
-};
-
-checkTransaction();
-
-const loadHistory = async () => {
-    const historyString = await client.getAsync('lpt-txn-looper.history');
-    if (historyString == null || historyString == '') {
-        return;
-    }
-    history = JSON.parse(historyString);
-};
-
-const saveTxnDetails = async (txnHash, txn, txnReceipt) => {
-    const price = await fetch('https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD');
-    const priceJson = await price.json();
-    history[lastTxn] = {};
-    history[lastTxn].transaction = txn;
-    history[lastTxn].receipt = txnReceipt;
-    history[lastTxn].price = priceJson;
-};
-
-const setTransactionToPrevious = async () => {
-    let redisNonce = parseInt(await client.getAsync('eth_redis_nonce'));
-    redisNonce--;
-    client.set('eth_redis_nonce', redisNonce);
-};
-
-const calculateDetails = () => {
-    let total = 0.0;
-    for(var key in history  ) {
-        try {
-            const gasUsed = history[key].receipt.gasUsed;
-            const gasPrice = history[key].transaction.gasPrice;
-            const ethPrice = history[key].price["USD"];
-            const paid = gasUsed*gasPrice*ethPrice/1000000000000000000;
-            // console.log('paid $' + paid.toFixed(2) + ' used ' + gasUsed + ' at ' + gasPrice + ' at ' + ethPrice);
-        total += paid;
-        } catch (ex) {
-            //fail silently on printing :-/
-        }
-    }
-    console.log('Purchased $' + total + ' so far.');
 };
 
 const getSafeGasPrice = async () => {
@@ -134,5 +142,5 @@ const getSafeGasPrice = async () => {
     } else if (tmp < process.env.MIN_GAS_PRICE) {
         return process.env.MIN_GAS_PRICE;
     }
-    return tmp;
+    return tmp + 100000000;
 };

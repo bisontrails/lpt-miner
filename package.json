@@ -23,5 +23,8 @@
     "node-fetch": "^2.2.0",
     "redis": "^2.8.0",
     "web3": "^1.0.0-beta.35"
+  },
+  "devDependencies": {
+    "merkle-mine": "git+https://github.com/livepeer/merkle-mine.git#master"
   }
 }
