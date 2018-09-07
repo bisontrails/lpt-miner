@@ -59,6 +59,16 @@ There is a .env.example file. Make a copy of this file and save it as .env. You 
     LAST_TXNS - A comma seperated list of the last *outgoing* transaction from your Ethereum addresses, in the same order as your keys
 
 
-## Start by running:
+
+
+
+
+## Start mining!
+You should be all set and ready to mine lots of LPT to bond to our (or anyone elses) transcoder --
 
     npm start
+    
+    
+    
+## Feedback welcome!
+Please give us feedback or ask questions in the issues for this repo. We will try to support it as best as we can.
