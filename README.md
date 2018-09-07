@@ -5,6 +5,20 @@ lpt-miner is a simple node app that interacts with the [MultiMerkleMine](https:/
 
 lpt-miner can mine simultaneously across any number of Ethereum addresses. It creates, signs, submits and monitors transactions for each address it is configured to use. When a transaction is completed, it automatically submits a new one. It monitors gas prices and adjusts automatically to the current safe low gas price returned from [ethgasstation.info](ethgasstation.info).
 
+## Prerequisites:
+
+### Git
+
+### Node & npm
+Make sure to have node v8 and npm installed before working with this repo
+
+### Redis server
+
+In order to run lpt-miner you need a local redis server running. You don't need to do anything custom just get it running. Install redis-server using your favorite package manager (apt-get, homebrew, etc) or you can [install directly](https://redis.io/topics/quickstart) although this is a bit harder. When it is installed just open a new terminal or run:
+
+    redis-server &
+
+
 ## Clone Repo
 Make sure you have git installed and clone the repo --
 
@@ -22,15 +36,7 @@ Then move into the directory:
 
 ## Setup:
 
-Have your UTC JSON keystore files in a directory that the script has access to. For more on keystore files, [check out this link](https://medium.com/@julien.maffre/what-is-an-ethereum-keystore-file-86c8c5917b97).
-
-## Redis server
-
-In order to run lpt-miner you need a local redis server running. You don't need to do anything custom just get it running. Install redis-server using your favorite package manager (apt-get, homebrew, etc) or you can [install directly](https://redis.io/topics/quickstart) although this is a bit harder. When it is installed just open a new terminal or run:
-
-    redis-server &
-    
-
+Have your UTC JSON keystore files in a directory that the script has access to. These files are generated when you create an Ethereum wallet and can be used as is. For example myetherwallet gives you one of these keystore files. For more on keystore files, [check out this link](https://medium.com/@julien.maffre/what-is-an-ethereum-keystore-file-86c8c5917b97). 
 
 
 ### Environment Settings
