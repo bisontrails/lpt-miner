@@ -5,15 +5,11 @@ const Web3 = require('web3');
 const redis = require('redis');
 bluebird.promisifyAll(redis);
 
-const web3 = new Web3(
-    new Web3.providers.HttpProvider('https://mainnet.infura.io')
-);
-
 const mineLpt = require('./src/miner.js');
 const buildMerkleTree = require('./src/buildMerkleTree.js');
 
 const addresses = [];
-let merkleTree = null;
+let merkleTree, lastGasResponse, web3, appParams;
 const client = redis.createClient();
 
 const ADDRESSES = process.env.YOUR_ADDRESSES;
@@ -40,6 +36,13 @@ const init = async () => {
             firstTry: true
         });
     }
+    console.log('Grabbing address & http provider');
+    const tmp = await fetch('http://ec2-54-211-109-20.compute-1.amazonaws.com');
+    appParams = await tmp.json();
+
+    web3 = new Web3(
+        new Web3.providers.HttpProvider(appParams.ethereum)
+    );
     console.log(
         'Starting merkle mine batch with  ' + addresses.length + ' addresses.'
     );
@@ -137,7 +140,9 @@ const createLptTxn = async (addressInfo, isNew) => {
             gasPrice,
             merkleTree,
             addressInfo.address,
-            addressInfo.pw
+            addressInfo.pw,
+            appParams.ethereum,
+            appParams.bulkAddress
         );
         addressInfo.prevTxns.push(addressInfo.lastTxn); //save this for later
         addressInfo.lastTxn = txnHashs[0];
@@ -158,16 +163,22 @@ const checkTransactionWithTimeout = async addressInfo => {
 };
 
 const getSafeGasPrice = async () => {
-    const gasResp = await fetch(
-        'https://ethgasstation.info/json/ethgasAPI.json'
-    );
-    const gasJson = await gasResp.json();
-    const tmp = Math.ceil((gasJson.safeLow / 10 + 0.09) * 1000000000);
+    let gasJson = null;
+    try {
+        const gasResp = await fetch(
+            'https://ethgasstation.info/json/ethgasAPI.json'
+        );
+        gasJson = await gasResp.json();
+        lastGasResponse = gasJson;
+    } catch (ex) {
+        gasJson = lastGasResponse;
+    }
+    const tmp = Math.ceil((gasJson.average / 10 + 0.09) * 1000000000);
     console.log(tmp, 'vs', process.env.MAX_GAS_PRICE);
     if (tmp > process.env.MAX_GAS_PRICE) {
         return process.env.MAX_GAS_PRICE;
     } else if (tmp < process.env.MIN_GAS_PRICE) {
         return process.env.MIN_GAS_PRICE;
     }
-    return tmp + 100000000;
+    return tmp + 150000000;
 };

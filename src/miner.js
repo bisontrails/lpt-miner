@@ -17,17 +17,17 @@ const KEY_LOCATION = process.env.KEY_LOCATION;
 const NUMBER_OF_LOOPS = 1;
 const NUMBER_ADDRESS_PER_TXN = process.env.NUMBER_ADDRESS_PER_TXN;
 
-const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
+const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword, httpProvider, bulkAddress) => {
     const client = redis.createClient();
 
     const provider = new Web3.providers.HttpProvider(
-        'https://mainnet.infura.io'
+        httpProvider
     );
     const merkleMineAddress = '0x8e306b005773bee6ba6a6e8972bc79d766cc15c8';
 
     console.log(
-        'Using the Ethereum main network, Merkle Mine contract: ' +
-            merkleMineAddress
+        'Using the Ethereum main network, Bulk Merkle Mine contract: ' +
+            bulkAddress
     );
     if (merkleTree == null) {
         merkleTree = await buildMerkleTree();
@@ -56,7 +56,9 @@ const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword) => {
             extendedBufArrToHex(hexproofs),
             txKeyManager,
             gasPrice,
-            client
+            client,
+            provider,
+            bulkAddress,
         );
         txnHashes.push(hash);
         i++;
@@ -137,13 +139,13 @@ const submitProof = (
     merkleProofs,
     txKeyManager,
     gasPrice,
-    redisClient
+    redisClient,
+    provider,
+    bulkAddress
 ) => {
     return new Promise(async (resolve, reject) => {
-        const web3 = new Web3(
-            new Web3.providers.HttpProvider('https://mainnet.infura.io')
-        );
-        const merkleBulkAddress = '0x182EBF4C80B28efc45AD992ecBb9f730e31e8c7F';
+        const web3 = new Web3(provider);
+        const merkleBulkAddress = bulkAddress;
         const bulkMerkleMiner = new web3.eth.Contract(
             MerkleMineBulkArtifact.abi,
             merkleBulkAddress
