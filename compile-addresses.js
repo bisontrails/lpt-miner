@@ -49,7 +49,7 @@ const initialInsert = async () => {
         const add = '0x' + buf.toString('hex');
         try {
             await connection.query(
-                'INSERT INTO `livepeer`.`livepeer` (address, mined) VALUES (?, false)',
+                'INSERT INTO `livepeer`.`livepeer` (address, mined) VALUES (?, true)',
                 add
             );
             console.log('added', add);
@@ -59,8 +59,6 @@ const initialInsert = async () => {
 
         accounts.push(add);
     }
-
-    await connection.query('UPDATE `livepeer`.`livepeer` SET mined = true WHERE address = \'0x0000000000000000000000000000000000000000\'');
 
     console.log('Inserted ' + accounts.length + ' into mysql database.');
     console.log(accounts.length);
