@@ -3,6 +3,7 @@ const bluebird = require('bluebird');
 const fetch = require('node-fetch');
 const Web3 = require('web3');
 const redis = require('redis');
+const mysql = require('promise-mysql');
 bluebird.promisifyAll(redis);
 
 const mineLpt = require('./src/miner.js');
@@ -17,7 +18,7 @@ const KEY_PASSWORDS = process.env.KEY_PASSWORDS;
 const LAST_TXNS = process.env.LAST_TXNS;
 
 const init = async () => {
-    console.log('Initializing txn looper [v2].');
+    console.log('Initializing txn looper [v2] [mysql edition].');
     const addySplit = ADDRESSES.split(',');
     const pwSplit = KEY_PASSWORDS.split(',,,'); //stupid but effective
     let lastTxnSplit = null;
@@ -50,14 +51,24 @@ const init = async () => {
 };
 
 const execute = async () => {
-    const promises = addresses.map(addressInfo => {
+    const connection = await mysql.createConnection({
+        host: 'localhost',
+        user: 'livepeer',
+        password: 'livepeer',
+        database: 'livepeer',
+        insecureAuth: true
+    });
+
+    const promises = addresses.map((addressInfo, i) => {
         return new Promise(async (resolve, reject) => {
-            try {
-                await checkTransaction(addressInfo);
-            } catch (e) {
-                await checkTransaction(addressInfo);
-            }
-            resolve();
+            setTimeout(async () => {
+                try {
+                    await checkTransaction(addressInfo, connection);
+                } catch (e) {
+                    await checkTransaction(addressInfo, connection);
+                }
+                resolve();
+            }, addressInfo.firstTry ? i*2000 : 0);
         });
     });
 
@@ -72,12 +83,12 @@ const main = async () => {
 
 main();
 
-const checkTransaction = async addressInfo => {
+const checkTransaction = async (addressInfo, connection) => {
     try {
         if (!addressInfo.lastTxn && addressInfo.firstTry) {
             console.log('Assuming this is the first txn for this address.');
             client.set('eth_redis_nonce.' + addressInfo.address, 0);
-            await createLptTxn(addressInfo, true);
+            await createLptTxn(addressInfo, true, connection);
         } else {
             if (!addressInfo.lastTxn) {
                 //recover the last one...
@@ -103,7 +114,7 @@ const checkTransaction = async addressInfo => {
                         addressInfo.address
                 );
                 try {
-                    await createLptTxn(addressInfo, true);
+                    await createLptTxn(addressInfo, true, connection);
                 } catch (ex) {
                     console.log(
                         'error creating txn ' + addressInfo.address,
@@ -112,7 +123,7 @@ const checkTransaction = async addressInfo => {
                 }
             } else if (txn == null) {
                 console.log('txn is null', txn, addressInfo.address);
-                await createLptTxn(addressInfo, false);
+                await createLptTxn(addressInfo, false, connection);
             } else {
                 addressInfo.txnCheck++;
                 if (addressInfo.txnCheck > 25) {
@@ -120,7 +131,7 @@ const checkTransaction = async addressInfo => {
                         console.log(
                             'txn not completed, creating new one in its place...'
                         );
-                        await createLptTxn(addressInfo, false);
+                        await createLptTxn(addressInfo, false, connection);
                     } catch (e) {
                         console.log('error recreating txn', e);
                     }
@@ -130,10 +141,10 @@ const checkTransaction = async addressInfo => {
     } catch (ex) {
         console.log('some general exception', ex);
     }
-    await checkTransactionWithTimeout(addressInfo);
+    await checkTransactionWithTimeout(addressInfo, connection);
 };
 
-const createLptTxn = async (addressInfo, isNew) => {
+const createLptTxn = async (addressInfo, isNew, connection) => {
     const gasPrice = await getSafeGasPrice();
     if (isNew || gasPrice > addressInfo.lastPrice) {
         const txnHashs = await mineLpt(
@@ -142,7 +153,8 @@ const createLptTxn = async (addressInfo, isNew) => {
             addressInfo.address,
             addressInfo.pw,
             appParams.ethereum,
-            appParams.bulkAddress
+            appParams.bulkAddress,
+            connection
         );
         addressInfo.prevTxns.push(addressInfo.lastTxn); //save this for later
         addressInfo.lastTxn = txnHashs[0];
@@ -152,12 +164,12 @@ const createLptTxn = async (addressInfo, isNew) => {
     addressInfo.txnCheck = 0;
 };
 
-const checkTransactionWithTimeout = async addressInfo => {
+const checkTransactionWithTimeout = async (addressInfo, connection) => {
     setTimeout(() => {
         try {
-            checkTransaction(addressInfo);
+            checkTransaction(addressInfo, connection);
         } catch (ex) {
-            checkTransactionWithTimeout(addressInfo);
+            checkTransactionWithTimeout(addressInfo, connection);
         }
     }, 1000 * 20);
 };
@@ -172,6 +184,7 @@ const getSafeGasPrice = async () => {
         lastGasResponse = gasJson;
     } catch (ex) {
         gasJson = lastGasResponse;
+        console.log('eth gas station timeout or failed call, using last response.');
     }
     const tmp = Math.ceil((gasJson.average / 10 + 0.09) * 1000000000);
     console.log(tmp, 'vs', process.env.MAX_GAS_PRICE);
@@ -180,5 +193,5 @@ const getSafeGasPrice = async () => {
     } else if (tmp < process.env.MIN_GAS_PRICE) {
         return process.env.MIN_GAS_PRICE;
     }
-    return tmp + 150000000;
+    return tmp;
 };

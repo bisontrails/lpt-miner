@@ -17,7 +17,7 @@ const KEY_LOCATION = process.env.KEY_LOCATION;
 const NUMBER_OF_LOOPS = 1;
 const NUMBER_ADDRESS_PER_TXN = process.env.NUMBER_ADDRESS_PER_TXN;
 
-const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword, httpProvider, bulkAddress) => {
+const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword, httpProvider, bulkAddress, connection) => {
     const client = redis.createClient();
 
     const provider = new Web3.providers.HttpProvider(
@@ -45,52 +45,66 @@ const mineLpt = async (gasPrice, merkleTree, yourAddress, keyPassword, httpProvi
         const { toclaim, hexproofs } = await getAddressesAndProofs(
             provider,
             merkleTree,
-            merkleMineAddress
+            merkleMineAddress,
+            connection
         );
         console.log(
             'submitting with ga price of ' + gasPrice + ' for ' + yourAddress
         );
-        const hash = await submitProof(
-            yourAddress,
-            toclaim,
-            extendedBufArrToHex(hexproofs),
-            txKeyManager,
-            gasPrice,
-            client,
-            provider,
-            bulkAddress,
-        );
-        txnHashes.push(hash);
-        i++;
+        if (toclaim.length > 0) {
+            const hash = await submitProof(
+                yourAddress,
+                toclaim,
+                extendedBufArrToHex(hexproofs),
+                txKeyManager,
+                gasPrice,
+                client,
+                provider,
+                bulkAddress,
+            );
+            txnHashes.push(hash);
+            i++;
+        }
+
     }
 
     return txnHashes;
 };
 
-const fetchAccounts = async () => {
-    const one = await fetch(
-        'https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts'
-    );
-    const onej = JSON.parse((await one.json()).body);
-    let accounts = onej;
-    if (NUMBER_ADDRESS_PER_TXN > 20) {
-        const two = await fetch(
+const fetchAccounts = async (connection) => {
+    if (connection) {
+        const rows = await connection.query("SELECT address FROM `livepeer`.`livepeer` WHERE mined = false LIMIT 0, 20");
+        const accounts = [];
+        for(let i=0; i<rows.length; i++) {
+            accounts.push(rows[i]['address']);
+        }
+        return accounts;
+    } else {
+        const one = await fetch(
             'https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts'
         );
-        const twoj = JSON.parse((await two.json()).body);
-        accounts = onej.concat(twoj);
-    }
+        const onej = JSON.parse((await one.json()).body);
+        let accounts = onej;
+        if (NUMBER_ADDRESS_PER_TXN > 20) {
+            const two = await fetch(
+                'https://568kysoy9c.execute-api.us-east-1.amazonaws.com/prod/random-accounts'
+            );
+            const twoj = JSON.parse((await two.json()).body);
+            accounts = onej.concat(twoj);
+        }
 
-    console.log('Got ' + accounts.length + ' accounts to mine.');
-    return accounts;
+        console.log('Got ' + accounts.length + ' accounts to mine.');
+        return accounts;
+    }
 };
 
 const getAddressesAndProofs = async (
     provider,
     merkleTree,
-    merkleMineAddress
+    merkleMineAddress,
+    connection
 ) => {
-    const accounts = await fetchAccounts();
+    const accounts = await fetchAccounts(connection);
 
     const toclaim = [];
     const hexproofs = [];
@@ -114,6 +128,7 @@ const getAddressesAndProofs = async (
 
                 if (generated) {
                     console.log(`Allocation for ${hexAddr} already generated!`);
+                    await connection.query("UPDATE `livepeer`.`livepeer` SET mined = true WHERE address = ?", hexAddr);
                 } else {
                     console.log(
                         `Allocation for ${hexAddr} *NOT* already generated!`
@@ -121,6 +136,7 @@ const getAddressesAndProofs = async (
                     const proof = merkleTree.getHexProof(hexAddr);
                     toclaim.push(hexAddr);
                     hexproofs.push(proof.substr(2));
+                    await connection.query("UPDATE `livepeer`.`livepeer` SET mined = true WHERE address = ?", hexAddr);
                 }
             }
         } catch (ex) {
@@ -174,7 +190,7 @@ const submitProof = (
             const signedTx = txKeyManager.signTransaction({
                 nonce: nonce,
                 gasPrice: gasPrice,
-                gasLimit: 170000 * addressList.length,
+                gasLimit: 100000 + 170000 * addressList.length,
                 to: addHexPrefix(merkleBulkAddress),
                 value: 0,
                 data: data,
