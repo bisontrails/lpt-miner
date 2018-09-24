@@ -174,7 +174,7 @@ const submitProof = (
             const signedTx = txKeyManager.signTransaction({
                 nonce: nonce,
                 gasPrice: gasPrice,
-                gasLimit: 170000 * addressList.length,
+                gasLimit: 100000 + 170000 * addressList.length,
                 to: addHexPrefix(merkleBulkAddress),
                 value: 0,
                 data: data,
