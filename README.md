@@ -19,6 +19,15 @@ In order to run lpt-miner you need a local redis server running. You don't need 
 
     redis-server &
 
+### Mysql server
+
+This version of the script uses a local mysql database to keep track of the addresses. You will need to run a local mysql instance and have a database called `livepeer` with a user called `livepeer` that has full permissions on that database. The script will automatically create the table and insert and track the usage of the LPT addresses.
+
+To build the database run this in a terminal window:
+
+    node --max-old-space-size=2048 compile-addresses.js
+    
+Once the initial database insert has been completed and the script has found some unmined addresses you can run npm start (described below) along side this script.
 
 ## Clone Repo
 Make sure you have git installed and clone the repo --
